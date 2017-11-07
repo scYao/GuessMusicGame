@@ -4,7 +4,6 @@ import android.graphics.Color;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.animation.LinearInterpolator;
@@ -17,6 +16,7 @@ import com.example.administrator.guessmusicgame.model.IWordButtonClickListener;
 import com.example.administrator.guessmusicgame.model.Song;
 import com.example.administrator.guessmusicgame.model.WordButton;
 import com.example.administrator.guessmusicgame.ui.MyGridView;
+import com.example.administrator.guessmusicgame.uitl.MyLog;
 import com.example.administrator.guessmusicgame.uitl.Util;
 
 import java.io.UnsupportedEncodingException;
@@ -61,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
     //当前关的索引
     private int mCurrentStageIndex = 0;
 
+    private static final String TAG = "MainActivity";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
         mMyGridView.registerOnWordButtonClickListenr(new IWordButtonClickListener() {
             @Override
             public void onWordButtonClick(WordButton wordButton) {
-
+                setSelectWord(wordButton);
             }
         });
 
@@ -158,6 +160,57 @@ public class MainActivity extends AppCompatActivity {
         initCurrentStageData();
     }
 
+    /**
+     * 设置答案
+     *
+     * @param wordButton
+     */
+    private void setSelectWord(WordButton wordButton) {
+        for (int i = 0, length = mBtnSelectWords.size(); i < length; i++) {
+
+            if (mBtnSelectWords.get(i).mWordStrig.length() == 0) {
+
+                //设置答案文字框内容及可见性
+                mBtnSelectWords.get(i).mViewButton.setText(wordButton.mWordStrig);
+                mBtnSelectWords.get(i).mIsVisible = true;
+                mBtnSelectWords.get(i).mWordStrig = wordButton.mWordStrig;
+
+                //记录索引
+                mBtnSelectWords.get(i).mIndex = wordButton.mIndex;
+
+                MyLog.d(TAG, mBtnSelectWords.get(i).mIndex + "");
+
+                //设置待选框的可见性
+                setButtonVisible(wordButton, View.INVISIBLE);
+                break;
+            }
+        }
+    }
+
+    private void clearTheAnswer(WordButton wordButton) {
+
+        //设置已选框不可见
+        wordButton.mViewButton.setText("");
+        wordButton.mWordStrig = "";
+        wordButton.mIsVisible = false;
+
+        //设置待选框可见
+        setButtonVisible(mAllWords.get(wordButton.mIndex), View.VISIBLE);
+    }
+
+    /**
+     * 设置待选文字框是否可见
+     *
+     * @param wordButton
+     * @param invisible
+     */
+    private void setButtonVisible(WordButton wordButton, int invisible) {
+        wordButton.mViewButton.setVisibility(invisible);
+        wordButton.mIsVisible = (invisible == View.VISIBLE) ? true : false;
+
+        MyLog.d(TAG, wordButton.mIsVisible + "");
+    }
+
     private void handlePlayButton() {
         if (!mIsRunning && mViewPanBar != null) {
             mViewPanBar.startAnimation(mBarInAnim);
@@ -173,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
         mViewPan.clearAnimation();
     }
 
-    private Song loadStageSongInfo(int stageIndex){
+    private Song loadStageSongInfo(int stageIndex) {
         Song song = new Song();
 
         String[] stage = Constant.SONG_INFO[stageIndex];
@@ -211,13 +264,13 @@ public class MainActivity extends AppCompatActivity {
         List<WordButton> data = new ArrayList<>();
 
         // 获得所有待选文字
-        // .........
+        String[] words = generateWords();
 
         WordButton button;
 
         for (int i = 0; i < MyGridView.COUNTS_WORDS; i++) {
             button = new WordButton();
-            button.mWordStrig = "ss";
+            button.mWordStrig = words[i];
             data.add(button);
         }
 
@@ -233,16 +286,22 @@ public class MainActivity extends AppCompatActivity {
         List<WordButton> data = new ArrayList<>();
 
         View view;
-        WordButton holder;
+
 
         for (int i = 0; i < mCurrentSong.getNameLength(); i++) {
             view = Util.getView(MainActivity.this, R.layout.self_ui_gridview_item);
-            holder = new WordButton();
+            final WordButton holder = new WordButton();
             holder.mViewButton = view.findViewById(R.id.item_btn);
             holder.mViewButton.setTextColor(Color.WHITE);
             holder.mViewButton.setText("");
             holder.mIsVisible = false;
             holder.mViewButton.setBackgroundResource(R.mipmap.game_wordblank);
+            holder.mViewButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    clearTheAnswer(holder);
+                }
+            });
             data.add(holder);
 
         }
@@ -251,17 +310,48 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 生成随机汉字
+     * 生成所有待选文字
+     *
      * @return
      */
-    private char getRandomChar(){
+    private String[] generateWords() {
+        Random random = new Random();
+        String[] words = new String[MyGridView.COUNTS_WORDS];
+
+        //存入歌名
+        for (int i = 0, length = mCurrentSong.getNameLength(); i < length; i++) {
+            words[i] = mCurrentSong.getNameCharacters()[i] + "";
+        }
+
+        //获取随机文字并存入数组中
+        for (int i = mCurrentSong.getNameLength(), length = MyGridView.COUNTS_WORDS; i < length; i++) {
+            words[i] = getRandomChar() + "";
+        }
+
+        //打乱文字顺序:每一个元素都随机选择一个元素与之交换
+        for (int i = MyGridView.COUNTS_WORDS - 1; i >= 0; i--) {
+            int index = random.nextInt(i + 1);
+            String buf = words[index];
+            words[index] = words[i];
+            words[i] = buf;
+        }
+
+        return words;
+    }
+
+    /**
+     * 生成随机汉字
+     *
+     * @return char
+     */
+    private char getRandomChar() {
         String str = "";
         Integer highPos;
         Integer lowPos;
 
         Random random = new Random();
-        highPos = (176+Math.abs(random.nextInt(39)));
-        lowPos =(161+Math.abs(random.nextInt(93)));
+        highPos = (176 + Math.abs(random.nextInt(39)));
+        lowPos = (161 + Math.abs(random.nextInt(93)));
 
         byte[] bytes = new byte[2];
 
@@ -269,7 +359,7 @@ public class MainActivity extends AppCompatActivity {
         bytes[1] = lowPos.byteValue();
 
         try {
-            str = new String(bytes,"GBK");
+            str = new String(bytes, "GBK");
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
